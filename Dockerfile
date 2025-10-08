@@ -1,5 +1,5 @@
 # Use Alpine Linux with OpenJDK 21 JRE
-FROM eclipse-temurin:21-jre-alpine
+FROM amazoncorretto:21-alpine-jre
 
 # Set working directory
 WORKDIR /app
