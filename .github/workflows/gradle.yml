@@ -14,7 +14,8 @@ jobs:
       packages: write
     env:
       REGISTRY: ghcr.io
-      
+      IMAGE_NAME: mdt-smartcare/gateway-service
+
     steps:
     - uses: actions/checkout@v5
 
@@ -28,12 +29,6 @@ jobs:
     # See: https://github.com/gradle/actions/blob/main/setup-gradle/README.md
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@v4
-
-    - name: Extract project name
-      run: echo "PROJECT_NAME=$(./gradlew properties -q | grep "^rootProject.name:" | cut -d' ' -f2)" >> $GITHUB_ENV
-
-    - name: Set image name
-      run: echo "IMAGE_NAME=mdt-smartcare/${{ env.PROJECT_NAME }}" >> $GITHUB_ENV
 
     - name: Build with Gradle Wrapper
       env:
