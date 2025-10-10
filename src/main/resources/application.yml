@@ -13,6 +13,8 @@ spring:
               uri: ${ADMIN_SERVICE_URI:http://127.0.0.1:8085}
               predicates:
                 - Path=/admin/**
+              filters:
+                - name: JwtValidationFilter
 
 management:
   endpoints:
@@ -23,3 +25,8 @@ management:
 logging:
   level:
     org.springframework.cloud.gateway: INFO
+    org.mdl.smartcare.gateway.security: INFO
+
+jwt:
+  issuer: ${JWT_ISSUER:https://keycloak.mdtlabs.org/realms/smartcare}
+  audience: ${JWT_AUDIENCE:account}

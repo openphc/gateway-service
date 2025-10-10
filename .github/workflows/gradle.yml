@@ -1,0 +1,86 @@
+name: Java CI with Gradle
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      REGISTRY: ghcr.io
+      
+    steps:
+    - uses: actions/checkout@v5
+
+    - name: Set up JDK 21
+      uses: actions/setup-java@v5
+      with:
+        java-version: '21'
+        distribution: 'temurin'
+
+    # Configure Gradle for optimal use in GitHub Actions, including caching of downloaded dependencies.
+    # See: https://github.com/gradle/actions/blob/main/setup-gradle/README.md
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@v4
+
+    - name: Extract project name
+      run: echo "PROJECT_NAME=$(./gradlew properties -q | grep "^rootProject.name:" | cut -d' ' -f2)" >> $GITHUB_ENV
+
+    - name: Set image name
+      run: echo "IMAGE_NAME=mdt-smartcare/${{ env.PROJECT_NAME }}" >> $GITHUB_ENV
+
+    - name: Build with Gradle Wrapper
+      env:
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
+        SONAR.PROJECT.KEY: org.mdl.admin
+        SONAR.PROJECT.NAME: Admin
+      run: ./gradlew build sonar
+
+    - name: Log in to GitHub Container Registry
+      if: github.event_name == 'push'
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GHCR_TOKEN }}
+
+    - name: Build (and optionally publish) container image
+      run: |
+        CMD="./gradlew bootBuildImage --imageName=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
+        if [ "${{ github.event_name }}" = "push" ]; then
+          CMD="$CMD --publishImage"
+        fi
+        echo "Running: $CMD"
+        eval "$CMD"
+
+    - name: Tag and push commit image
+      if: github.event_name == 'push'
+      run: |
+        docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+        docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+
+  dependency-submission:
+
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up JDK 21
+      uses: actions/setup-java@v5
+      with:
+        java-version: '21'
+        distribution: 'temurin'
+
+    # Generates and submits a dependency graph, enabling Dependabot Alerts for all project dependencies.
+    # See: https://github.com/gradle/actions/blob/main/dependency-submission/README.md
+    - name: Generate and submit dependency graph
+      uses: gradle/actions/dependency-submission@v4
