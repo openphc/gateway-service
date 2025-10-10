@@ -38,6 +38,34 @@ dependencyManagement {
 	}
 }
 
+compileJava {
+    options.compilerArgs += ['-parameters']
+}
+
 tasks.named('test') {
 	useJUnitPlatform()
+}
+
+sonarqube {
+	properties {
+		def sonarHostUrl = findProperty('sonar.host.url') ?: System.getenv('SONAR_HOST_URL')
+		if (sonarHostUrl) {
+			property 'sonar.host.url', sonarHostUrl
+		}
+
+		def sonarProjectKey = findProperty('sonar.projectKey') ?: System.getenv('SONAR_PROJECT_KEY') ?: "${group}:${rootProject.name}"
+		property 'sonar.projectKey', sonarProjectKey
+
+		def sonarProjectName = findProperty('sonar.projectName') ?: System.getenv('SONAR_PROJECT_NAME') ?: rootProject.name
+		property 'sonar.projectName', sonarProjectName
+
+		def sonarToken = findProperty('sonar.token') ?: System.getenv('SONAR_TOKEN')
+		if (sonarToken) {
+			property 'sonar.token', sonarToken
+		}
+
+		property 'sonar.sources', 'src/main/java'
+		property 'sonar.tests', 'src/test/java'
+		property 'sonar.java.binaries', 'build/classes/java/main'
+	}
 }
