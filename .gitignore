@@ -180,3 +180,4 @@ README.html
 .DS_Store
 out/
 .micronaut/
+!gradle/wrapper/gradle-wrapper.jar
