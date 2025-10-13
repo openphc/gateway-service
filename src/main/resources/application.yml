@@ -1,5 +1,5 @@
 server:
-  port: 8081
+  port: 8090
 
 spring:
   application:
@@ -8,6 +8,19 @@ spring:
     gateway:
       server:
         webflux:
+          globalcors:
+            cors-configurations:
+              '[/**]':
+                allowedOrigins: ${ALLOWED_ORIGINS:http://localhost:3000,http://workflow.mdtlabs.org}
+                allowedMethods:
+                  - GET
+                  - POST
+                  - PUT
+                  - DELETE
+                  - OPTIONS
+                allowedHeaders: "*"
+                allowCredentials: true
+                maxAge: 3600
           routes:
             - id: admin-service
               uri: ${ADMIN_SERVICE_URI:http://127.0.0.1:8085}
