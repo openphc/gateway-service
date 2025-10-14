@@ -43,3 +43,23 @@ logging:
 jwt:
   issuer: ${JWT_ISSUER:https://keycloak.mdtlabs.org/realms/smartcare}
   audience: ${JWT_AUDIENCE:account}
+
+authorization:
+  enabled: ${AUTHORIZATION_ENABLED:true}
+  permission-mappings:
+    USER_READ:
+      - method: GET
+        uri: /admin/users/*
+      - method: GET
+        uri: /admin/users
+    USER_WRITE:
+      - method: POST
+        uri: /admin/users
+    USER_UPDATE:
+      - method: PUT
+        uri: /admin/users/*
+      - method: PATCH
+        uri: /admin/users/*
+    USER_DELETE:
+      - method: DELETE
+        uri: /admin/users/*

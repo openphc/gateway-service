@@ -10,11 +10,16 @@ import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 
+import java.util.List;
+
 @Component
 public class JwtValidationFilter extends AbstractGatewayFilterFactory<JwtValidationFilter.Config> {
 
     @Autowired
     private JwtUtil jwtUtil;
+
+    @Autowired
+    private AuthorizationService authorizationService;
 
     public JwtValidationFilter() {
         super(Config.class);
@@ -45,8 +50,17 @@ public class JwtValidationFilter extends AbstractGatewayFilterFactory<JwtValidat
                 return handleUnauthorized(response, "Invalid or expired token");
             }
 
-            // Add user info to request headers for downstream services
+            // Perform authorization check
             try {
+                List<String> permissions = jwtUtil.extractPermissions(token);
+                String method = request.getMethod().name();
+                String uri = path;
+
+                if (!authorizationService.isAuthorized(permissions, method, uri)) {
+                    return handleForbidden(response, "Access denied: Insufficient permissions");
+                }
+
+                // Add user info to request headers for downstream services
                 String username = "test";
                 ServerHttpRequest modifiedRequest = request.mutate()
                         .header("X-User-Name", username)
@@ -74,6 +88,14 @@ public class JwtValidationFilter extends AbstractGatewayFilterFactory<JwtValidat
         response.getHeaders().add("Content-Type", "application/json");
         
         String body = String.format("{\"error\":\"Unauthorized\",\"message\":\"%s\",\"status\":401}", message);
+        return response.writeWith(Mono.just(response.bufferFactory().wrap(body.getBytes())));
+    }
+
+    private Mono<Void> handleForbidden(ServerHttpResponse response, String message) {
+        response.setStatusCode(HttpStatus.FORBIDDEN);
+        response.getHeaders().add("Content-Type", "application/json");
+        
+        String body = String.format("{\"error\":\"Forbidden\",\"message\":\"%s\",\"status\":403}", message);
         return response.writeWith(Mono.just(response.bufferFactory().wrap(body.getBytes())));
     }
 

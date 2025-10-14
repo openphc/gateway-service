@@ -17,6 +17,8 @@ import com.auth0.jwt.interfaces.JWTVerifier;
 import java.security.interfaces.RSAPublicKey;
 import java.security.interfaces.ECPublicKey;
 import java.net.URI;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -80,6 +82,38 @@ public class JwtUtil {
         }
         
         throw new SmartcareBusinessException("Invalid Authorization header");
+    }
+
+    /**
+     * Extract permissions from JWT token's realm_access.roles claim
+     * 
+     * @param token JWT token
+     * @return List of permission strings (e.g., ["USER_READ", "USER_WRITE"])
+     */
+    public List<String> extractPermissions(String token) {
+        try {
+            DecodedJWT decodedJWT = JWT.decode(token);
+            
+            // Extract realm_access claim
+            Map<String, Object> realmAccess = decodedJWT.getClaim("realm_access").asMap();
+            
+            if (realmAccess != null && realmAccess.containsKey("roles")) {
+                Object rolesObj = realmAccess.get("roles");
+                
+                if (rolesObj instanceof List) {
+                    @SuppressWarnings("unchecked")
+                    List<String> roles = (List<String>) rolesObj;
+                    logger.debug("Extracted permissions from token: {}", roles);
+                    return roles;
+                }
+            }
+            
+            logger.warn("No realm_access.roles found in token");
+            return new ArrayList<>();
+        } catch (Exception e) {
+            logger.error("Error extracting permissions from token", e);
+            return new ArrayList<>();
+        }
     }
 }
 
