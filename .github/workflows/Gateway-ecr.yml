@@ -2,9 +2,13 @@ name: Java CI with  ECR
 
 on:
   push:
-    branches: ["main"]
+    branches: 
+      - main
+      - sc-394
   pull_request:
-    branches: ["main"]
+    branches: 
+      - main
+
 
 jobs:
   build-test-scan-push:
