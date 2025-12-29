@@ -21,7 +21,7 @@ jobs:
     env:
       AWS_REGION: ap-south-1
       AWS_ACCOUNT_ID: "586050444008"
-      ECR_REPO: smartcare/dev
+      ECR_REPO: smartcare/dev/keycloak
       IMAGE_TAG: ${{ github.sha }}
 
     steps:

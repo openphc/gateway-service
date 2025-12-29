@@ -1,5 +1,5 @@
 # Use Alpine Linux with OpenJDK 21 JRE
-FROM amazoncorretto:21-alpine-jre
+FROM amazoncorretto:21-alpine 
 
 # Set working directory
 WORKDIR /app
