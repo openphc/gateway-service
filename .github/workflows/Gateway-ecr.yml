@@ -9,19 +9,20 @@ on:
     branches: 
       - main
 
+permissions:
+  contents: read
+  id-token: write
+  packages: write
+
 
 jobs:
   build-test-scan-push:
     runs-on: ubuntu-latest
-
-    permissions:
-      contents: read
-      packages: write
-
+    
     env:
       AWS_REGION: ap-south-1
       AWS_ACCOUNT_ID: "586050444008"
-      ECR_REPO: smartcare/dev/keycloak
+      ECR_REPO: smartcare/dev/gateway-service
       IMAGE_TAG: ${{ github.sha }}
 
     steps:
