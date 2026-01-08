@@ -39,6 +39,7 @@ public class PermissionSyncController {
                 result.put("message", response.getMessage());
                 result.put("successCount", response.getSuccessCount());
                 result.put("failureCount", response.getFailureCount());
+                result.put("deletedCount", response.getDeletedCount());
                 
                 if (!response.getFailedRoles().isEmpty()) {
                     result.put("failedRoles", response.getFailedRoles());

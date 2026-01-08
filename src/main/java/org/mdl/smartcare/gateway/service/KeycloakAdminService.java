@@ -19,7 +19,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import jakarta.ws.rs.NotFoundException;
-import jakarta.ws.rs.core.Response;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -90,69 +89,148 @@ public class KeycloakAdminService {
      * @param description Role description
      * @return true if created/updated, false on error
      */
-    public boolean createOrUpdateRealmRole(String roleName, String description) {
-        try (Keycloak keycloak = getKeycloakClient()) {
-            RealmResource realmResource = keycloak.realm(keycloakConfig.getTargetRealm());
-            RolesResource rolesResource = realmResource.roles();
+    public boolean createOrUpdateRealmRole(String roleName, String description, RolesResource rolesResource) {
+
+        try {
+            // Try to get existing role (idempotency check)
+            RoleRepresentation existingRole = rolesResource.get(roleName).toRepresentation();
+
+            // Role exists, update description if different
+            if (!description.equals(existingRole.getDescription())) {
+                existingRole.setDescription(description);
+                rolesResource.get(roleName).update(existingRole);
+                logger.info("Updated existing Keycloak role: {}", roleName);
+                return true;
+            } else {
+                logger.info("Keycloak role already exists with same description: {}", roleName);
+                return true;
+            }
+        } catch (NotFoundException e) {
+            // Role doesn't exist, create it
+            RoleRepresentation newRole = new RoleRepresentation();
+            newRole.setName(roleName);
+            newRole.setDescription(description);
 
             try {
-                // Try to get existing role (idempotency check)
-                RoleRepresentation existingRole = rolesResource.get(roleName).toRepresentation();
-
-                // Role exists, update description if different
-                if (!description.equals(existingRole.getDescription())) {
-                    existingRole.setDescription(description);
-                    rolesResource.get(roleName).update(existingRole);
-                    logger.info("Updated existing Keycloak role: {}", roleName);
-                    return true;
-                } else {
-                    logger.info("Keycloak role already exists with same description: {}", roleName);
-                    return true;
-                }
-            } catch (NotFoundException e) {
-                // Role doesn't exist, create it
-                RoleRepresentation newRole = new RoleRepresentation();
-                newRole.setName(roleName);
-                newRole.setDescription(description);
-
-                try {
-                    rolesResource.create(newRole);
-                    logger.info("Created new Keycloak role: {}", roleName);
-                    return true;
-                } catch (Exception createEx) {
-                    logger.error("Failed to create Keycloak role: {}", roleName, createEx);
-                    return false;
-                }
+                rolesResource.create(newRole);
+                logger.info("Created new Keycloak role: {}", roleName);
+                return true;
+            } catch (Exception createEx) {
+                logger.error("Failed to create Keycloak role: {}", roleName, createEx);
+                return false;
             }
-        } catch (Exception e) {
-            logger.error("Error creating/updating Keycloak role: {}", roleName, e);
-            return false;
         }
     }
 
     /**
-     * Sync multiple roles to Keycloak
+     * Sync multiple roles to Keycloak (create, update, and delete)
      * 
-     * @param roles List of role names and descriptions
+     * @param roles List of role names and descriptions from database
      * @return SyncResult with success/failure counts
      */
     public SyncResult syncRolesToKeycloak(List<RoleInfo> roles) {
         int successCount = 0;
         int failureCount = 0;
+        int deletedCount = 0;
         List<String> failedRoles = new ArrayList<>();
-
-        for (RoleInfo roleInfo : roles) {
-            boolean success = createOrUpdateRealmRole(roleInfo.getName(), roleInfo.getDescription());
-            if (success) {
-                successCount++;
-            } else {
-                failureCount++;
-                failedRoles.add(roleInfo.getName());
+        
+        try (Keycloak keycloak = getKeycloakClient()) {
+            RealmResource realmResource = keycloak.realm(keycloakConfig.getTargetRealm());
+            RolesResource rolesResource = realmResource.roles();
+            
+            // Step 1: Create or update roles from database
+            logger.info("Step 1: Creating/updating {} roles in Keycloak...", roles.size());
+            for (RoleInfo roleInfo : roles) {
+                boolean success = createOrUpdateRealmRole(roleInfo.getName(), roleInfo.getDescription(), rolesResource);
+                if (success) {
+                    successCount++;
+                } else {
+                    failureCount++;
+                    failedRoles.add(roleInfo.getName());
+                }
             }
-        }
 
-        logger.info("Keycloak sync completed. Success: {}, Failed: {}", successCount, failureCount);
-        return new SyncResult(successCount, failureCount, failedRoles);
+            // Step 2: Delete roles that exist in Keycloak but not in database
+            logger.info("Step 2: Checking for roles to delete in Keycloak...");
+            deletedCount = deleteRolesNotInDatabase(rolesResource, roles);
+
+            logger.info("Keycloak sync completed. Created/Updated: {}, Failed: {}, Deleted: {}", 
+                       successCount, failureCount, deletedCount);
+            return new SyncResult(successCount, failureCount, deletedCount, failedRoles);
+            
+        } catch (Exception e) {
+            logger.error("Failed to sync roles to Keycloak. Error: {}", e.getMessage(), e);
+            throw new RuntimeException("Keycloak sync failed: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Delete realm roles that exist in Keycloak but not in database
+     * 
+     * @param rolesResource Keycloak roles resource
+     * @param databaseRoles List of roles from database
+     * @return Number of roles deleted
+     */
+    private int deleteRolesNotInDatabase(RolesResource rolesResource, List<RoleInfo> databaseRoles) {
+        int deletedCount = 0;
+        
+        try {
+            // Get all current roles from Keycloak
+            List<RoleRepresentation> keycloakRoles = rolesResource.list();
+            
+            // Build set of database role names for quick lookup
+            java.util.Set<String> databaseRoleNames = new java.util.HashSet<>();
+            for (RoleInfo roleInfo : databaseRoles) {
+                databaseRoleNames.add(roleInfo.getName());
+            }
+            
+            // Define system roles that should never be deleted
+            java.util.Set<String> systemRoles = java.util.Set.of(
+                "default-roles-" + keycloakConfig.getTargetRealm().toLowerCase(),
+                "offline_access",
+                "uma_authorization"
+            );
+            
+            // Delete roles that are in Keycloak but not in database (and not system roles)
+            for (RoleRepresentation keycloakRole : keycloakRoles) {
+                String roleName = keycloakRole.getName();
+                
+                // Skip system roles
+                if (systemRoles.contains(roleName)) {
+                    continue;
+                }
+                
+                // Skip roles that start with system prefixes
+                if (roleName.startsWith("default-roles-") || 
+                    roleName.startsWith("offline_") ||
+                    roleName.startsWith("uma_")) {
+                    continue;
+                }
+                
+                // If role exists in Keycloak but not in database, delete it
+                if (!databaseRoleNames.contains(roleName)) {
+                    try {
+                        rolesResource.deleteRole(roleName);
+                        logger.info("Deleted Keycloak role (not in database): {}", roleName);
+                        deletedCount++;
+                    } catch (Exception deleteEx) {
+                        logger.warn("Failed to delete Keycloak role: {}. Error: {}", 
+                                   roleName, deleteEx.getMessage());
+                    }
+                }
+            }
+            
+            if (deletedCount > 0) {
+                logger.info("Deleted {} roles from Keycloak that are not in database", deletedCount);
+            } else {
+                logger.info("No roles to delete from Keycloak");
+            }
+            
+        } catch (Exception e) {
+            logger.error("Error while checking for roles to delete", e);
+        }
+        
+        return deletedCount;
     }
 
     /**
@@ -217,11 +295,13 @@ public class KeycloakAdminService {
     public static class SyncResult {
         private int successCount;
         private int failureCount;
+        private int deletedCount;
         private List<String> failedRoles;
 
-        public SyncResult(int successCount, int failureCount, List<String> failedRoles) {
+        public SyncResult(int successCount, int failureCount, int deletedCount, List<String> failedRoles) {
             this.successCount = successCount;
             this.failureCount = failureCount;
+            this.deletedCount = deletedCount;
             this.failedRoles = failedRoles;
         }
 
@@ -231,6 +311,10 @@ public class KeycloakAdminService {
 
         public int getFailureCount() {
             return failureCount;
+        }
+
+        public int getDeletedCount() {
+            return deletedCount;
         }
 
         public List<String> getFailedRoles() {

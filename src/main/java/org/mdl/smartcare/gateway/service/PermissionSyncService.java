@@ -42,7 +42,7 @@ public class PermissionSyncService {
             .map(permissions -> {
                 if (permissions.isEmpty()) {
                     logger.warn("No permissions found in database to sync");
-                    return new SyncResponse(0, 0, new ArrayList<>(), "No permissions found in database");
+                    return new SyncResponse(0, 0, 0, new ArrayList<>(), "No permissions found in database");
                 }
 
                 // Step 1: Reload permissions into gateway's PermissionConfig
@@ -77,20 +77,24 @@ public class PermissionSyncService {
                     roles.add(new KeycloakAdminService.RoleInfo(roleName, description));
                 }
 
-                // Sync to Keycloak
+                // Sync to Keycloak (create, update, delete)
                 KeycloakAdminService.SyncResult result = keycloakAdminService.syncRolesToKeycloak(roles);
+
+                String message = String.format(
+                    "Keycloak: %d created/updated, %d deleted. Gateway: %d permissions reloaded", 
+                    result.getSuccessCount(), result.getDeletedCount(), permissions.size());
 
                 return new SyncResponse(
                     result.getSuccessCount(),
                     result.getFailureCount(),
+                    result.getDeletedCount(),
                     result.getFailedRoles(),
-                    String.format("Synced %d permissions to Keycloak and reloaded %d permissions in gateway", 
-                                 result.getSuccessCount(), permissions.size())
+                    message
                 );
             })
             .doOnSuccess(response -> {
-                logger.info("Complete sync finished. Keycloak: {} success, {} failed. Gateway: reloaded", 
-                           response.getSuccessCount(), response.getFailureCount());
+                logger.info("Complete sync finished. Keycloak: {} success, {} failed, {} deleted. Gateway: reloaded", 
+                           response.getSuccessCount(), response.getFailureCount(), response.getDeletedCount());
             })
             .doOnError(error -> {
                 logger.error("Error during permission sync", error);
@@ -168,12 +172,14 @@ public class PermissionSyncService {
     public static class SyncResponse {
         private int successCount;
         private int failureCount;
+        private int deletedCount;
         private List<String> failedRoles;
         private String message;
 
-        public SyncResponse(int successCount, int failureCount, List<String> failedRoles, String message) {
+        public SyncResponse(int successCount, int failureCount, int deletedCount, List<String> failedRoles, String message) {
             this.successCount = successCount;
             this.failureCount = failureCount;
+            this.deletedCount = deletedCount;
             this.failedRoles = failedRoles;
             this.message = message;
         }
@@ -184,6 +190,10 @@ public class PermissionSyncService {
 
         public int getFailureCount() {
             return failureCount;
+        }
+
+        public int getDeletedCount() {
+            return deletedCount;
         }
 
         public List<String> getFailedRoles() {
