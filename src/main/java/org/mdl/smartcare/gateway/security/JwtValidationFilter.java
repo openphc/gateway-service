@@ -60,8 +60,10 @@ public class JwtValidationFilter extends AbstractGatewayFilterFactory<JwtValidat
                     return handleForbidden(response, "Access denied: Insufficient permissions");
                 }
 
+                // Extract username from JWT token
+                String username = jwtUtil.extractUsername(token);
+
                 // Add user info to request headers for downstream services
-                String username = "test";
                 ServerHttpRequest modifiedRequest = request.mutate()
                         .header("X-User-Name", username)
                         .header("X-Auth-Token", token)
