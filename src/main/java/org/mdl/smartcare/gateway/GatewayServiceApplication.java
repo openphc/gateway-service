@@ -12,8 +12,7 @@ import org.springframework.data.r2dbc.repository.config.EnableR2dbcRepositories;
 @EnableR2dbcRepositories
 public class GatewayServiceApplication {
 
-	public static void main(String[] args) {
-		SpringApplication.run(GatewayServiceApplication.class, args);
-	}
-
+  public static void main(String[] args) {
+    SpringApplication.run(GatewayServiceApplication.class, args);
+  }
 }
