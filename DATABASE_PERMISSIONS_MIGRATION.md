@@ -29,15 +29,15 @@ The gateway service now loads permission configurations from a PostgreSQL databa
 
 ```sql
 CREATE TABLE api_permissions (
-    id BIGSERIAL PRIMARY KEY,
-    permission_name VARCHAR(100) NOT NULL,
-    http_method VARCHAR(10) NOT NULL,
-    uri_pattern VARCHAR(255) NOT NULL,
-    description TEXT,
-    resource_category VARCHAR(50),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT unique_permission_method_uri UNIQUE (permission_name, http_method, uri_pattern)
+	id BIGSERIAL PRIMARY KEY,
+	permission_name VARCHAR(100) NOT NULL,
+	http_method VARCHAR(10) NOT NULL,
+	uri_pattern VARCHAR(255) NOT NULL,
+	description TEXT,
+	resource_category VARCHAR(50),
+	created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+	updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+	CONSTRAINT unique_permission_method_uri UNIQUE (permission_name, http_method, uri_pattern)
 );
 ```
 
@@ -58,10 +58,10 @@ The database connection is configured in `application.yml`:
 
 ```yaml
 spring:
-  r2dbc:
-    url: ${DATABASE_URL:r2dbc:postgresql://localhost:5432/admin_service}
-    username: ${DATABASE_USERNAME:opensrp}
-    password: ${DATABASE_PASSWORD:opensrp123}
+r2dbc:
+	url: ${DATABASE_URL:r2dbc:postgresql://localhost:5432/admin_service}
+	username: ${DATABASE_USERNAME:opensrp}
+	password: ${DATABASE_PASSWORD:opensrp123}
 ```
 
 **Environment Variables:**
@@ -90,9 +90,9 @@ psql "postgresql://opensrp:opensrp123@localhost:5432/admin_service" -f src/main/
 SELECT COUNT(*) FROM api_permissions;
 
 -- View permissions by category
-SELECT resource_category, COUNT(*) 
-FROM api_permissions 
-GROUP BY resource_category 
+SELECT resource_category, COUNT(*)
+FROM api_permissions
+GROUP BY resource_category
 ORDER BY resource_category;
 
 -- View all USER permissions
@@ -133,13 +133,13 @@ DATABASE_PASSWORD=opensrp123 \
 ### Runtime Flow
 
 ```
-Request → JwtValidationFilter 
-       → Extract JWT 
-       → Validate Token
-       → Extract Permissions (from JWT)
-       → AuthorizationService.isAuthorized()
-       → Check against database-loaded permissions
-       → Allow/Deny
+Request → JwtValidationFilter
+	→ Extract JWT
+	→ Validate Token
+	→ Extract Permissions (from JWT)
+	→ AuthorizationService.isAuthorized()
+	→ Check against database-loaded permissions
+	→ Allow/Deny
 ```
 
 ---
