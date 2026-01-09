@@ -35,34 +35,35 @@ public class DatabasePermissionLoader {
         logger.info("Loading permissions from database...");
 
         permissionRepository.findAllOrdered()
-            .collectList()
-            .doOnSuccess(permissions -> {
-                if (permissions.isEmpty()) {
-                    logger.warn("No permissions found in database. Using YAML configuration as fallback.");
-                    return;
-                }
+                .collectList()
+                .doOnSuccess(permissions -> {
+                    if (permissions.isEmpty()) {
+                        logger.warn("No permissions found in database. Using YAML configuration as fallback.");
+                        return;
+                    }
 
-                Map<String, List<PermissionConfig.PermissionRule>> permissionMappings = 
-                    convertToPermissionMappings(permissions);
+                    Map<String, List<PermissionConfig.PermissionRule>> permissionMappings = convertToPermissionMappings(
+                            permissions);
 
-                permissionConfig.setPermissionMappings(permissionMappings);
-                
-                logger.info("Successfully loaded {} permissions from database covering {} unique permission names", 
-                           permissions.size(), permissionMappings.size());
-                
-                // Log summary
-                permissionMappings.forEach((permName, rules) -> {
-                    logger.debug("Permission '{}' has {} rules", permName, rules.size());
-                });
-            })
-            .doOnError(error -> {
-                logger.error("Failed to load permissions from database. Using YAML configuration as fallback.", error);
-            })
-            .onErrorResume(error -> {
-                // On error, keep existing YAML configuration
-                return Mono.empty();
-            })
-            .subscribe();
+                    permissionConfig.setPermissionMappings(permissionMappings);
+
+                    logger.info("Successfully loaded {} permissions from database covering {} unique permission names",
+                            permissions.size(), permissionMappings.size());
+
+                    // Log summary
+                    permissionMappings.forEach((permName, rules) -> {
+                        logger.debug("Permission '{}' has {} rules", permName, rules.size());
+                    });
+                })
+                .doOnError(error -> {
+                    logger.error("Failed to load permissions from database. Using YAML configuration as fallback.",
+                            error);
+                })
+                .onErrorResume(error -> {
+                    // On error, keep existing YAML configuration
+                    return Mono.empty();
+                })
+                .subscribe();
     }
 
     /**
@@ -71,14 +72,14 @@ public class DatabasePermissionLoader {
      * @param apiPermissions List of ApiPermission from database
      * @return Map of permission name to list of PermissionRule
      */
-    private Map<String, List<PermissionConfig.PermissionRule>> convertToPermissionMappings(
+    public static Map<String, List<PermissionConfig.PermissionRule>> convertToPermissionMappings(
             List<ApiPermission> apiPermissions) {
-        
+
         Map<String, List<PermissionConfig.PermissionRule>> mappings = new HashMap<>();
 
         for (ApiPermission apiPermission : apiPermissions) {
             String permissionName = apiPermission.getPermissionName();
-            
+
             // Create PermissionRule
             PermissionConfig.PermissionRule rule = new PermissionConfig.PermissionRule();
             rule.setMethod(apiPermission.getHttpMethod());
@@ -90,35 +91,4 @@ public class DatabasePermissionLoader {
 
         return mappings;
     }
-
-    /**
-     * Reload permissions from database (can be called manually or via scheduled task)
-     * 
-     * @return Mono<Void> for reactive completion
-     */
-    public Mono<Void> reloadPermissions() {
-        logger.info("Manually reloading permissions from database...");
-        
-        return permissionRepository.findAllOrdered()
-            .collectList()
-            .doOnSuccess(permissions -> {
-                if (permissions.isEmpty()) {
-                    logger.warn("No permissions found in database during reload.");
-                    return;
-                }
-
-                Map<String, List<PermissionConfig.PermissionRule>> permissionMappings = 
-                    convertToPermissionMappings(permissions);
-
-                permissionConfig.setPermissionMappings(permissionMappings);
-                
-                logger.info("Successfully reloaded {} permissions from database", permissions.size());
-            })
-            .doOnError(error -> {
-                logger.error("Failed to reload permissions from database", error);
-            })
-            .then();
-    }
 }
-
-
