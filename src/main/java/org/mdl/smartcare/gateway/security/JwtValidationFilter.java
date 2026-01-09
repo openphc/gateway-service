@@ -1,5 +1,6 @@
 package org.mdl.smartcare.gateway.security;
 
+import org.mdl.smartcare.gateway.constants.GatewayConstants;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cloud.gateway.filter.GatewayFilter;
 import org.springframework.cloud.gateway.filter.factory.AbstractGatewayFilterFactory;
@@ -42,12 +43,12 @@ public class JwtValidationFilter extends AbstractGatewayFilterFactory<JwtValidat
             String token = jwtUtil.extractTokenFromHeader(authHeader);
 
             if (token == null) {
-                return handleUnauthorized(response, "Missing or invalid Authorization header");
+                return handleUnauthorized(response, GatewayConstants.Messages.MISSING_AUTH_HEADER);
             }
 
             // Validate token
             if (!jwtUtil.validateToken(token)) {
-                return handleUnauthorized(response, "Invalid or expired token");
+                return handleUnauthorized(response, GatewayConstants.Messages.INVALID_TOKEN);
             }
 
             // Perform authorization check
@@ -57,7 +58,7 @@ public class JwtValidationFilter extends AbstractGatewayFilterFactory<JwtValidat
                 String uri = path;
 
                 if (!authorizationService.isAuthorized(permissions, method, uri)) {
-                    return handleForbidden(response, "Access denied: Insufficient permissions");
+                    return handleForbidden(response, GatewayConstants.Messages.ACCESS_DENIED);
                 }
 
                 // Extract username from JWT token
@@ -65,39 +66,41 @@ public class JwtValidationFilter extends AbstractGatewayFilterFactory<JwtValidat
 
                 // Add user info to request headers for downstream services
                 ServerHttpRequest modifiedRequest = request.mutate()
-                        .header("X-User-Name", username)
-                        .header("X-Auth-Token", token)
+                        .header(GatewayConstants.Headers.X_USER_NAME, username)
+                        .header(GatewayConstants.Headers.X_AUTH_TOKEN, token)
                         .build();
 
                 return chain.filter(exchange.mutate().request(modifiedRequest).build());
             } catch (Exception e) {
-                return handleUnauthorized(response, "Token validation failed: " + e.getMessage());
+                return handleUnauthorized(response, GatewayConstants.Messages.TOKEN_VALIDATION_FAILED + e.getMessage());
             }
         };
     }
 
     private boolean isPublicEndpoint(String path) {
         // Define public endpoints that don't require authentication
-        return path.startsWith("/actuator") || 
-               path.startsWith("/health") || 
-               path.startsWith("/info") ||
-               path.equals("/") ||
-               path.startsWith("/public");
+        return path.startsWith(GatewayConstants.PublicPaths.ACTUATOR) || 
+               path.startsWith(GatewayConstants.PublicPaths.HEALTH) || 
+               path.startsWith(GatewayConstants.PublicPaths.INFO) ||
+               path.equals(GatewayConstants.PublicPaths.ROOT) ||
+               path.startsWith(GatewayConstants.PublicPaths.PUBLIC);
     }
 
     private Mono<Void> handleUnauthorized(ServerHttpResponse response, String message) {
         response.setStatusCode(HttpStatus.UNAUTHORIZED);
-        response.getHeaders().add("Content-Type", "application/json");
+        response.getHeaders().add(GatewayConstants.Headers.CONTENT_TYPE, "application/json");
         
-        String body = String.format("{\"error\":\"Unauthorized\",\"message\":\"%s\",\"status\":401}", message);
+        String body = String.format("{\"error\":\"%s\",\"message\":\"%s\",\"status\":401}", 
+                                   GatewayConstants.Messages.UNAUTHORIZED, message);
         return response.writeWith(Mono.just(response.bufferFactory().wrap(body.getBytes())));
     }
 
     private Mono<Void> handleForbidden(ServerHttpResponse response, String message) {
         response.setStatusCode(HttpStatus.FORBIDDEN);
-        response.getHeaders().add("Content-Type", "application/json");
+        response.getHeaders().add(GatewayConstants.Headers.CONTENT_TYPE, "application/json");
         
-        String body = String.format("{\"error\":\"Forbidden\",\"message\":\"%s\",\"status\":403}", message);
+        String body = String.format("{\"error\":\"%s\",\"message\":\"%s\",\"status\":403}", 
+                                   GatewayConstants.Messages.FORBIDDEN, message);
         return response.writeWith(Mono.just(response.bufferFactory().wrap(body.getBytes())));
     }
 

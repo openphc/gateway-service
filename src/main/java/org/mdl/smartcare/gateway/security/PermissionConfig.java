@@ -11,7 +11,7 @@ import java.util.Map;
 @ConfigurationProperties(prefix = "authorization")
 public class PermissionConfig {
 
-    private boolean enabled = true;
+    private boolean enabled;
     private Map<String, List<PermissionRule>> permissionMappings = new HashMap<>();
 
     public boolean isEnabled() {
@@ -51,4 +51,3 @@ public class PermissionConfig {
         }
     }
 }
-

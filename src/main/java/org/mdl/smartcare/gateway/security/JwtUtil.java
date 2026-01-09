@@ -1,5 +1,6 @@
 package org.mdl.smartcare.gateway.security;
 
+import org.mdl.smartcare.gateway.constants.GatewayConstants;
 import org.mdl.smartcare.gateway.exception.SmartcareBusinessException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -76,11 +77,11 @@ public class JwtUtil {
     }
 
     public String extractTokenFromHeader(String authHeader) {
-        if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            return authHeader.substring(7);
+        if (authHeader != null && authHeader.startsWith(GatewayConstants.Headers.BEARER_PREFIX)) {
+            return authHeader.substring(GatewayConstants.Headers.BEARER_PREFIX.length());
         }
-
-        throw new SmartcareBusinessException("Invalid Authorization header");
+        
+        throw new SmartcareBusinessException(GatewayConstants.Messages.INVALID_AUTH_HEADER);
     }
 
     /**
@@ -94,10 +95,10 @@ public class JwtUtil {
             DecodedJWT decodedJWT = JWT.decode(token);
 
             // Extract realm_access claim
-            Map<String, Object> realmAccess = decodedJWT.getClaim("realm_access").asMap();
-
-            if (realmAccess != null && realmAccess.containsKey("roles")) {
-                Object rolesObj = realmAccess.get("roles");
+            Map<String, Object> realmAccess = decodedJWT.getClaim(GatewayConstants.JwtClaims.REALM_ACCESS).asMap();
+            
+            if (realmAccess != null && realmAccess.containsKey(GatewayConstants.JwtClaims.ROLES)) {
+                Object rolesObj = realmAccess.get(GatewayConstants.JwtClaims.ROLES);
 
                 if (rolesObj instanceof List) {
                     @SuppressWarnings("unchecked")
@@ -126,28 +127,28 @@ public class JwtUtil {
             DecodedJWT decodedJWT = JWT.decode(token);
 
             // Try preferred_username (most common in Keycloak)
-            String username = decodedJWT.getClaim("preferred_username").asString();
+            String username = decodedJWT.getClaim(GatewayConstants.JwtClaims.PREFERRED_USERNAME).asString();
             if (username != null && !username.isEmpty()) {
                 logger.debug("Extracted username from preferred_username: {}", username);
                 return username;
             }
-
+            
             // Fallback to subject (user ID)
             String subject = decodedJWT.getSubject();
             if (subject != null && !subject.isEmpty()) {
                 logger.debug("Extracted username from subject: {}", subject);
                 return subject;
             }
-
+            
             // Fallback to email
-            String email = decodedJWT.getClaim("email").asString();
+            String email = decodedJWT.getClaim(GatewayConstants.JwtClaims.EMAIL).asString();
             if (email != null && !email.isEmpty()) {
                 logger.debug("Extracted username from email: {}", email);
                 return email;
             }
-
+            
             logger.warn("No username claim found in token");
-            return "unknown";
+            return GatewayConstants.Messages.UNKNOWN_USER;
         } catch (Exception e) {
             logger.error("Error extracting username from token", e);
             return "unknown";

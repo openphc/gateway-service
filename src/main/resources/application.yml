@@ -61,3 +61,6 @@ keycloak:
     # client-secret: ${KEYCLOAK_ADMIN_CLIENT_SECRET:}
     username: ${KEYCLOAK_ADMIN_USERNAME:admin}
     password: ${KEYCLOAK_ADMIN_PASSWORD:admin123}
+
+authorization:
+  enabled: ${AUTHORIZATION_ENABLED:true}

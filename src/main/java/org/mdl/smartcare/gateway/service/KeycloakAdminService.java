@@ -13,6 +13,7 @@ import org.keycloak.admin.client.resource.RealmResource;
 import org.keycloak.admin.client.resource.RolesResource;
 import org.keycloak.representations.idm.RoleRepresentation;
 import org.mdl.smartcare.gateway.config.KeycloakConfig;
+import org.mdl.smartcare.gateway.constants.GatewayConstants;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,7 +21,9 @@ import org.springframework.stereotype.Service;
 
 import jakarta.ws.rs.NotFoundException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Service
 public class KeycloakAdminService {
@@ -73,10 +76,10 @@ public class KeycloakAdminService {
                     .resteasyClient(resteasyClient)
                     .build();
 
-            logger.info("Successfully created Keycloak client with custom Jackson configuration");
+            logger.info(GatewayConstants.LogMessages.KEYCLOAK_CLIENT_CREATED);
             return keycloak;
         } catch (Exception e) {
-            logger.error("Failed to create Keycloak client. Server: {}, Realm: {}",
+            logger.error(GatewayConstants.LogMessages.KEYCLOAK_CLIENT_FAILED,
                     keycloakConfig.getServerUrl(), keycloakConfig.getRealm(), e);
             throw new RuntimeException("Failed to connect to Keycloak: " + e.getMessage(), e);
         }
@@ -99,10 +102,10 @@ public class KeycloakAdminService {
             if (!description.equals(existingRole.getDescription())) {
                 existingRole.setDescription(description);
                 rolesResource.get(roleName).update(existingRole);
-                logger.info("Updated existing Keycloak role: {}", roleName);
+                logger.info(GatewayConstants.LogMessages.KEYCLOAK_ROLE_UPDATED, roleName);
                 return true;
             } else {
-                logger.info("Keycloak role already exists with same description: {}", roleName);
+                logger.info(GatewayConstants.LogMessages.KEYCLOAK_ROLE_EXISTS, roleName);
                 return true;
             }
         } catch (NotFoundException e) {
@@ -113,7 +116,7 @@ public class KeycloakAdminService {
 
             try {
                 rolesResource.create(newRole);
-                logger.info("Created new Keycloak role: {}", roleName);
+                logger.info(GatewayConstants.LogMessages.KEYCLOAK_ROLE_CREATED, roleName);
                 return true;
             } catch (Exception createEx) {
                 logger.error("Failed to create Keycloak role: {}", roleName, createEx);
@@ -179,16 +182,16 @@ public class KeycloakAdminService {
             List<RoleRepresentation> keycloakRoles = rolesResource.list();
             
             // Build set of database role names for quick lookup
-            java.util.Set<String> databaseRoleNames = new java.util.HashSet<>();
+            Set<String> databaseRoleNames = new HashSet<>();
             for (RoleInfo roleInfo : databaseRoles) {
                 databaseRoleNames.add(roleInfo.getName());
             }
             
             // Define system roles that should never be deleted
-            java.util.Set<String> systemRoles = java.util.Set.of(
-                "default-roles-" + keycloakConfig.getTargetRealm().toLowerCase(),
-                "offline_access",
-                "uma_authorization"
+            Set<String> systemRoles = Set.of(
+                GatewayConstants.Keycloak.ROLE_PREFIX_DEFAULT + keycloakConfig.getTargetRealm().toLowerCase(),
+                GatewayConstants.Keycloak.ROLE_OFFLINE_ACCESS,
+                GatewayConstants.Keycloak.ROLE_UMA_AUTHORIZATION
             );
             
             // Delete roles that are in Keycloak but not in database (and not system roles)
@@ -201,9 +204,9 @@ public class KeycloakAdminService {
                 }
                 
                 // Skip roles that start with system prefixes
-                if (roleName.startsWith("default-roles-") || 
-                    roleName.startsWith("offline_") ||
-                    roleName.startsWith("uma_")) {
+                if (roleName.startsWith(GatewayConstants.Keycloak.ROLE_PREFIX_DEFAULT) || 
+                    roleName.startsWith(GatewayConstants.Keycloak.ROLE_PREFIX_OFFLINE) ||
+                    roleName.startsWith(GatewayConstants.Keycloak.ROLE_PREFIX_UMA)) {
                     continue;
                 }
                 
@@ -211,10 +214,10 @@ public class KeycloakAdminService {
                 if (!databaseRoleNames.contains(roleName)) {
                     try {
                         rolesResource.deleteRole(roleName);
-                        logger.info("Deleted Keycloak role (not in database): {}", roleName);
+                        logger.info(GatewayConstants.LogMessages.KEYCLOAK_ROLE_DELETED, roleName);
                         deletedCount++;
                     } catch (Exception deleteEx) {
-                        logger.warn("Failed to delete Keycloak role: {}. Error: {}", 
+                        logger.warn(GatewayConstants.LogMessages.KEYCLOAK_ROLE_DELETE_FAILED, 
                                    roleName, deleteEx.getMessage());
                     }
                 }
