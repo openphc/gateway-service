@@ -122,6 +122,11 @@ public class DatabasePermissionLoaderServiceImpl implements DatabasePermissionLo
             error -> {
               logger.error("Failed to reload permissions from database", error);
             })
+        .onErrorResume(
+            error -> {
+              // On error, keep existing configuration
+              return Mono.empty();
+            })
         .then();
   }
 }
