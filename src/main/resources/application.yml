@@ -4,6 +4,13 @@ server:
 spring:
   application:
     name: gateway-service
+  
+  # Database Configuration
+  r2dbc:
+    url: ${DATABASE_URL:r2dbc:postgresql://localhost:5432/admin_service}
+    username: ${DATABASE_USERNAME:opensrp}
+    password: ${DATABASE_PASSWORD:opensrp123}
+  
   cloud:
     gateway:
       server:
@@ -16,6 +23,7 @@ spring:
                   - GET
                   - POST
                   - PUT
+                  - PATCH
                   - DELETE
                   - OPTIONS
                 allowedHeaders: "*"
@@ -23,7 +31,7 @@ spring:
                 maxAge: 3600
           routes:
             - id: admin-service
-              uri: ${ADMIN_SERVICE_URI:http://127.0.0.1:8085}
+              uri: ${ADMIN_SERVICE_URI:http://localhost:8085}
               predicates:
                 - Path=/admin/**
               filters:
@@ -44,58 +52,15 @@ jwt:
   issuer: ${JWT_ISSUER:https://keycloak.mdtlabs.org/realms/smartcare}
   audience: ${JWT_AUDIENCE:account}
 
+keycloak:
+  admin:
+    server-url: ${KEYCLOAK_SERVER_URL:https://keycloak.mdtlabs.org}
+    realm: ${KEYCLOAK_REALM:master}
+    target-realm: ${KEYCLOAK_TARGET_REALM:smartcare}
+    client-id: ${KEYCLOAK_ADMIN_CLIENT_ID:admin-cli}
+    # client-secret: ${KEYCLOAK_ADMIN_CLIENT_SECRET:}
+    username: ${KEYCLOAK_ADMIN_USERNAME:admin}
+    password: ${KEYCLOAK_ADMIN_PASSWORD:admin123}
+
 authorization:
-  enabled: ${AUTHORIZATION_ENABLED:false}
-  permission-mappings:
-    USER_READ:
-      - method: GET
-        uri: /admin/users/*
-      - method: GET
-        uri: /admin/users
-    USER_CREATE_UPDATE:
-      - method: POST
-        uri: /admin/users
-      - method: PUT
-        uri: /admin/users/*
-      - method: PATCH
-        uri: /admin/users/*
-    USER_DELETE:
-      - method: DELETE
-        uri: /admin/users/*
-    PERMISSION_READ:
-      - method: GET
-        uri: /admin/permissions
-      - method: GET
-        uri: /admin/permissions/*
-    ROLE_READ:
-      - method: GET
-        uri: /admin/roles
-      - method: GET
-        uri: /admin/roles/*
-    ROLE_CREATE_UPDATE:
-      - method: POST
-        uri: /admin/roles
-      - method: PUT
-        uri: /admin/roles/*
-      - method: PATCH
-        uri: /admin/roles/*
-    ROLE_DELETE:
-      - method: DELETE
-        uri: /admin/roles/*
-    AU_DEFINITION_READ:
-      - method: GET
-        uri: /admin/au-definition
-      - method: GET
-        uri: /admin/au-definition/*
-      - method: GET
-        uri: /admin/au-definition/tree
-    AU_DEFINITION_CREATE_UPDATE:
-      - method: POST
-        uri: /admin/au-definition
-      - method: PUT
-        uri: /admin/au-definition/*
-      - method: PATCH
-        uri: /admin/au-definition/*
-    AU_DEFINITION_DELETE:
-      - method: DELETE
-        uri: /admin/au-definition/*
+  enabled: ${AUTHORIZATION_ENABLED:true}

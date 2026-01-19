@@ -61,17 +61,17 @@ Create a `docker-compose.yml` file for easier management:
 ```yaml
 version: '3.8'
 services:
-  gateway-service:
-    build: .
-    ports:
-      - "8081:8081"
-    environment:
-      - ADMIN_SERVICE_URI=http://admin-service:8085
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8081/actuator/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+gateway-service:
+	build: .
+	ports:
+	- "8081:8081"
+	environment:
+	- ADMIN_SERVICE_URI=http://admin-service:8085
+	healthcheck:
+	test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8081/actuator/health"]
+	interval: 30s
+	timeout: 10s
+	retries: 3
 ```
 
 Then run:
