@@ -115,11 +115,11 @@ jobs:
           ECR_URI=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}
 
           sed -i "s|image: .*|image: ${ECR_URI}:${IMAGE_TAG}|" \
-            Kubernetes/deployment/gatewaydepoyment.yaml
+            kubernetes/deployment/gatewaydepoyment.yaml
 
           git config user.name "ci-bot"
           git config user.email "ci-bot@github.com"
 
-          git add Kubernetes/deployment/gatewaydepoyment.yaml
+          git add kubernetes/deployment/gatewaydepoyment.yaml
           git commit -m "ci: update image to ${IMAGE_TAG}"
           git push origin main
