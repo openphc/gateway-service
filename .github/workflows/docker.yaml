@@ -9,16 +9,16 @@ permissions:
   packages: write
 
 
+env:
+  AWS_REGION: ap-south-1
+  AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+  ECR_REPO: smartcare/dev/gateway-service
+  IMAGE_TAG: ${{ github.sha }}
+
 jobs:
   build-test-scan-push:
     runs-on: ubuntu-latest
     
-    env:
-      AWS_REGION: ap-south-1
-      AWS_ACCOUNT_ID: "586050444008"
-      ECR_REPO: smartcare/dev/gateway-service
-      IMAGE_TAG: ${{ github.sha }}
-
     steps:
    
     # Checkout 1
@@ -76,7 +76,7 @@ jobs:
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v4
       with:
-        role-to-assume: arn:aws:iam::586050444008:role/GitHubActions-ECR-Role
+        role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/GitHubActions-ECR-Role
         aws-region: ${{ env.AWS_REGION }}
 
     - name: Login to Amazon ECR
@@ -103,11 +103,6 @@ jobs:
           git checkout main
 
       - name: Update image tag
-        env:
-          AWS_REGION: ap-south-1
-          AWS_ACCOUNT_ID: "586050444008"
-          ECR_REPO: smartcare/dev/gateway-service
-          IMAGE_TAG: ${{ github.sha }}
         run: |
           cd deploy-scripts
           git checkout main
@@ -115,11 +110,11 @@ jobs:
           ECR_URI=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}
 
           sed -i "s|image: .*|image: ${ECR_URI}:${IMAGE_TAG}|" \
-            kubernetes/deployment/gatewaydepoyment.yaml
+            kubernetes/deployment/gateway-deployment.yaml
 
           git config user.name "ci-bot"
           git config user.email "ci-bot@github.com"
 
-          git add kubernetes/deployment/gatewaydepoyment.yaml
+          git add kubernetes/deployment/gateway-deployment.yaml
           git commit -m "ci: update image to ${IMAGE_TAG}"
           git push origin main
