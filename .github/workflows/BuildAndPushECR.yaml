@@ -1,10 +1,6 @@
 name: Java CI and ECR Push
 
 on:
-  push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
   workflow_dispatch:
 
 permissions:
