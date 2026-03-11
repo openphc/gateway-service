@@ -63,3 +63,21 @@ jobs:
         docker tag ${ECR_URI}:latest ${ECR_URI}:${IMAGE_TAG}
         docker push ${ECR_URI}:${IMAGE_TAG}
         docker push ${ECR_URI}:latest
+  
+  trigger-deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && success() # only for push to main and docker image is successfully created
+    env:
+      GH_TOKEN: ${{ secrets.CROSS_REPO_TOKEN }}
+    steps:
+      - name: Trigger deploy-scripts workflow_dispatch
+        run: |
+          gh api --method POST \
+            /repos/openphc/deploy-scripts/actions/workflows/deploy.yml/dispatches \
+            --input - <<'JSON'
+          {
+            "ref": "main",
+            "inputs": { "target_env": "dev" }
+          }
+          JSON
