@@ -30,6 +30,9 @@ public class JwtUtil {
   @Value("${jwt.audience:audience}")
   private String audience;
 
+  @Value("${jwt.roles-claim-path:realm_access.roles}")
+  private String rolesClaimPath;
+
   private static final Logger logger = LoggerFactory.getLogger(JwtUtil.class);
 
   private static final Map<String, Function<Object, Algorithm>> ALGORITHM_MAP =
@@ -82,7 +85,16 @@ public class JwtUtil {
   }
 
   /**
-   * Extract permissions from JWT token's realm_access.roles claim
+   * Extract permissions from a configurable JWT claim path.
+   *
+   * <p>The path is configured via {@code jwt.roles-claim-path} and supports dot-separated
+   * traversal into nested claims. The last segment must resolve to a list of strings.
+   *
+   * <p>Examples:
+   * <ul>
+   *   <li>{@code realm_access.roles} — reads {@code realm_access.roles}
+   *   <li>{@code resource_access.gateway-service.roles} — reads client-level roles
+   * </ul>
    *
    * @param token JWT token
    * @return List of permission strings (e.g., ["USER_READ", "USER_WRITE"])
@@ -90,26 +102,63 @@ public class JwtUtil {
   public List<String> extractPermissions(String token) {
     try {
       DecodedJWT decodedJWT = JWT.decode(token);
+      // The rolesClaimPath is split into a top-level JWT claim and a remaining nested path.
+      // The first split(limit=2) ensures only the first dot is used, so keys containing dots
+      // or hyphens (like "gateway-service") in deeper segments are handled correctly.
+      //
+      // Example: rolesClaimPath = "resource_access.gateway-service.roles"
+      //   pathSegments[0] = "resource_access"        → top-level JWT claim
+      //   pathSegments[1] = "gateway-service.roles"   → nested path within that claim
+      //
+      // The JWT claim "resource_access" resolves to:
+      //   { "gateway-service": { "roles": ["HTTPBIN_READ", "HTTPBIN_WRITE"] }, ... }
+      //
+      // The loop then walks the remaining segments to reach the "roles" list:
+      //   Step 1: traverse into "gateway-service" map
+      //   Step 2: read "roles" list from that map
+      //
+      // For a simpler path like "realm_access.roles", the loop is skipped entirely
+      // since there are no intermediate segments — "roles" is read directly.
+      String[] pathSegments = rolesClaimPath.split("\\.", 2);
 
-      // Extract realm_access claim
-      Map<String, Object> realmAccess =
-          decodedJWT.getClaim(GatewayConstants.JwtClaims.REALM_ACCESS).asMap();
+      if (pathSegments.length < 2) {
+        logger.warn("Invalid roles-claim-path '{}': expected at least two segments", rolesClaimPath);
+        return new ArrayList<>();
+      }
 
-      if (realmAccess != null && realmAccess.containsKey(GatewayConstants.JwtClaims.ROLES)) {
-        Object rolesObj = realmAccess.get(GatewayConstants.JwtClaims.ROLES);
+      Map<String, Object> currentMap = decodedJWT.getClaim(pathSegments[0]).asMap();
+      if (currentMap == null) {
+        logger.warn("Claim '{}' not found in token", pathSegments[0]);
+        return new ArrayList<>();
+      }
 
-        if (rolesObj instanceof List) {
+      String[] remainingSegments = pathSegments[1].split("\\.");
+      for (int i = 0; i < remainingSegments.length - 1; i++) {
+        Object nested = currentMap.get(remainingSegments[i]);
+        if (nested instanceof Map) {
           @SuppressWarnings("unchecked")
-          List<String> roles = (List<String>) rolesObj;
-          logger.debug("Extracted permissions from token: {}", roles);
-          return roles;
+          Map<String, Object> nestedMap = (Map<String, Object>) nested;
+          currentMap = nestedMap;
+        } else {
+          logger.warn("Segment '{}' in path '{}' did not resolve to a map", remainingSegments[i], rolesClaimPath);
+          return new ArrayList<>();
         }
       }
 
-      logger.warn("No realm_access.roles found in token");
+      String lastSegment = remainingSegments[remainingSegments.length - 1];
+      Object rolesObj = currentMap.get(lastSegment);
+
+      if (rolesObj instanceof List) {
+        @SuppressWarnings("unchecked")
+        List<String> roles = (List<String>) rolesObj;
+        logger.debug("Extracted permissions from '{}': {}", rolesClaimPath, roles);
+        return roles;
+      }
+
+      logger.warn("No roles found at path '{}' in token", rolesClaimPath);
       return new ArrayList<>();
     } catch (Exception e) {
-      logger.error("Error extracting permissions from token", e);
+      logger.error("Error extracting permissions from token using path '{}'", rolesClaimPath, e);
       return new ArrayList<>();
     }
   }

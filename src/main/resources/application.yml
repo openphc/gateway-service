@@ -51,6 +51,7 @@ logging:
 jwt:
   issuer: ${JWT_ISSUER:https://keycloak.mdtlabs.org/realms/smartcare}
   audience: ${JWT_AUDIENCE:account}
+  roles-claim-path: ${JWT_ROLES_CLAIM_PATH:realm_access.roles}
 
 keycloak:
   admin:
