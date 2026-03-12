@@ -61,27 +61,6 @@ tasks.named('test') {
 	useJUnitPlatform()
 }
 
-// Spotless configuration
-spotless {
-	java {
-		target 'src/**/*.java'
-		googleJavaFormat('1.22.0')
-		removeUnusedImports()
-		trimTrailingWhitespace()
-		endWithNewline()
-
-		// Exclude generated files
-		targetExclude 'build/**', '**/generated/**'
-	}
-
-	format 'misc', {
-		target '*.gradle', '*.md', '.gitignore'
-		trimTrailingWhitespace()
-		indentWithTabs()
-		endWithNewline()
-	}
-}
-
 sonarqube {
 	properties {
 		def sonarHostUrl = findProperty('sonar.host.url') ?: System.getenv('SONAR_HOST_URL')
