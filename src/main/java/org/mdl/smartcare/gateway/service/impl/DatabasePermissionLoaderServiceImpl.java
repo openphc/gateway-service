@@ -11,7 +11,6 @@ import org.mdl.smartcare.gateway.service.DatabasePermissionLoaderService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
@@ -27,16 +26,9 @@ public class DatabasePermissionLoaderServiceImpl implements DatabasePermissionLo
 
   @Autowired private PermissionConfig permissionConfig;
 
-  @Value("${permissions.load-from-database-on-startup:true}")
-  private boolean loadPermissionsFromDatabaseOnStartup;
-
   @EventListener(ApplicationReadyEvent.class)
   public void onApplicationReady() {
-    if (loadPermissionsFromDatabaseOnStartup) {
-      loadPermissionsFromDatabase().subscribe();
-    } else {
-      logger.info("Skipping load permissions from database on startup (feature flag disabled).");
-    }
+    loadPermissionsFromDatabase().subscribe();
   }
 
   @Override

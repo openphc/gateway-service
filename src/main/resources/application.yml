@@ -65,6 +65,3 @@ keycloak:
 
 authorization:
   enabled: ${AUTHORIZATION_ENABLED:true}
-
-permissions:
-  load-from-database-on-startup: ${LOAD_PERMISSIONS_FROM_DATABASE_ON_STARTUP:false}
