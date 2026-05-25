@@ -8,9 +8,9 @@ permissions:
   packages: write
 
 env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: openphc/gateway-service
-  IMAGE_TAG: ${{ github.sha }}
+  IMAGE_URI: ghcr.io/${{ github.repository }}
+  # Incremental release tags: v1, v2, v3, ... (one new tag per successful build)
+  VERSION_TAG_PREFIX: v
 
 jobs:
   build:
@@ -42,9 +42,7 @@ jobs:
           -Dsonar.projectName=${{ vars.SONAR_PROJECT_NAME }}
 
     - name: Build container image
-      run: |
-        IMAGE_URI=${REGISTRY}/${IMAGE_NAME}
-        ./gradlew bootBuildImage --imageName=${IMAGE_URI}:latest
+      run: ./gradlew bootBuildImage --imageName=${IMAGE_URI}:latest
 
     - name: Log in to GitHub Container Registry
       uses: docker/login-action@v3
@@ -53,12 +51,35 @@ jobs:
         username: ${{ github.repository_owner }}
         password: ${{ secrets.GITHUB_TOKEN }}
 
+    - name: Determine next version tag
+      id: version
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        PACKAGE_NAME="${GITHUB_REPOSITORY#*/}"
+        OWNER="${GITHUB_REPOSITORY_OWNER}"
+        PREFIX="${VERSION_TAG_PREFIX}"
+        MAX=0
+
+        if VERSIONS_JSON=$(gh api "/orgs/${OWNER}/packages/container/${PACKAGE_NAME}/versions" --paginate 2>/dev/null); then
+          while IFS= read -r tag; do
+            if [[ "$tag" =~ ^${PREFIX}([0-9]+)$ ]]; then
+              n="${BASH_REMATCH[1]}"
+              if (( n > MAX )); then MAX=$n; fi
+            fi
+          done < <(echo "$VERSIONS_JSON" | jq -r '.[].metadata.container.tags[]?')
+        fi
+
+        NEXT=$((MAX + 1))
+        echo "version_tag=${PREFIX}${NEXT}" >> "$GITHUB_OUTPUT"
+        echo "Next version tag: ${PREFIX}${NEXT} (previous max: ${PREFIX}${MAX})"
+
     - name: Tag & Push Image
       run: |
-        IMAGE_URI=${REGISTRY}/${IMAGE_NAME}
-        docker tag ${IMAGE_URI}:latest ${IMAGE_URI}:${IMAGE_TAG}
-        docker push ${IMAGE_URI}:${IMAGE_TAG}
-        docker push ${IMAGE_URI}:latest
+        VERSION_TAG="${{ steps.version.outputs.version_tag }}"
+        docker tag "${IMAGE_URI}:latest" "${IMAGE_URI}:${VERSION_TAG}"
+        docker push "${IMAGE_URI}:${VERSION_TAG}"
+        docker push "${IMAGE_URI}:latest"
 
   # trigger-deploy:
   #   needs: build
