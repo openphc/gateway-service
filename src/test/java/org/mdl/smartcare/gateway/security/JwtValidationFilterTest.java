@@ -4,9 +4,11 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+import java.util.Base64;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mdl.smartcare.gateway.config.BasicAuthConfig;
 import org.mdl.smartcare.gateway.constants.GatewayConstants;
 import org.mockito.ArgumentCaptor;
 import org.springframework.cloud.gateway.filter.GatewayFilter;
@@ -34,6 +36,8 @@ class JwtValidationFilterTest {
 
   private JwtUtil jwtUtil;
   private AuthorizationService authorizationService;
+  private BasicAuthConfig basicAuthConfig;
+  private BasicAuthTokenService basicAuthTokenService;
   private GatewayFilter filter;
   private GatewayFilterChain chain;
 
@@ -41,13 +45,22 @@ class JwtValidationFilterTest {
   void setUp() {
     jwtUtil = mock(JwtUtil.class);
     authorizationService = mock(AuthorizationService.class);
+    basicAuthConfig = new BasicAuthConfig();
+    basicAuthTokenService = mock(BasicAuthTokenService.class);
 
     JwtValidationFilter factory = new JwtValidationFilter();
     ReflectionTestUtils.setField(factory, "jwtUtil", jwtUtil);
     ReflectionTestUtils.setField(factory, "authorizationService", authorizationService);
+    ReflectionTestUtils.setField(factory, "basicAuthConfig", basicAuthConfig);
+    ReflectionTestUtils.setField(factory, "basicAuthTokenService", basicAuthTokenService);
     filter = factory.apply(new JwtValidationFilter.Config());
 
     chain = mock(GatewayFilterChain.class);
+  }
+
+  private static String basicHeader(String user, String pass) {
+    return "Basic "
+        + Base64.getEncoder().encodeToString((user + ":" + pass).getBytes());
   }
 
   private static MockServerWebExchange exchange(MockServerHttpRequest request) {
@@ -178,5 +191,69 @@ class JwtValidationFilterTest {
     HttpHeaders forwardedHeaders = captor.getValue().getRequest().getHeaders();
     assertEquals("alice", forwardedHeaders.getFirst(GatewayConstants.Headers.X_USER_NAME));
     assertEquals("good", forwardedHeaders.getFirst(GatewayConstants.Headers.X_AUTH_TOKEN));
+  }
+
+  // ── Basic auth ──────────────────────────────────────────────────────────────
+
+  @Test
+  void testFilter_WhenBasicAuthDisabled_ShouldReturnUnauthorized() {
+    // Arrange — Basic header present but the feature is off (default).
+    MockServerWebExchange exchange =
+        exchange(
+            MockServerHttpRequest.get("/admin/users")
+                .header(HttpHeaders.AUTHORIZATION, basicHeader("bob", "secret"))
+                .build());
+
+    // Act / Assert
+    StepVerifier.create(filter.filter(exchange, chain)).verifyComplete();
+    assertEquals(HttpStatus.UNAUTHORIZED, exchange.getResponse().getStatusCode());
+    verify(basicAuthTokenService, never()).exchangeForToken(any());
+    verify(chain, never()).filter(any());
+  }
+
+  @Test
+  void testFilter_WhenBasicAuthEnabledAndAuthorized_ShouldExchangeAndForward() {
+    // Arrange — Basic credentials exchanged for a token that then passes the pipeline.
+    basicAuthConfig.setEnabled(true);
+    MockServerWebExchange exchange =
+        exchange(
+            MockServerHttpRequest.get("/admin/users")
+                .header(HttpHeaders.AUTHORIZATION, basicHeader("bob", "secret"))
+                .build());
+    when(basicAuthTokenService.exchangeForToken(any())).thenReturn(Mono.just("exchanged"));
+    when(jwtUtil.validateToken("exchanged")).thenReturn(true);
+    when(jwtUtil.extractPermissions("exchanged")).thenReturn(List.of("USER_READ"));
+    when(authorizationService.isAuthorized(anyList(), eq("GET"), eq("/admin/users")))
+        .thenReturn(true);
+    when(jwtUtil.extractUsername("exchanged")).thenReturn("bob");
+    when(chain.filter(any())).thenReturn(Mono.empty());
+
+    // Act / Assert
+    StepVerifier.create(filter.filter(exchange, chain)).verifyComplete();
+
+    ArgumentCaptor<ServerWebExchange> captor = ArgumentCaptor.forClass(ServerWebExchange.class);
+    verify(chain).filter(captor.capture());
+    HttpHeaders forwardedHeaders = captor.getValue().getRequest().getHeaders();
+    assertEquals("bob", forwardedHeaders.getFirst(GatewayConstants.Headers.X_USER_NAME));
+    assertEquals("exchanged", forwardedHeaders.getFirst(GatewayConstants.Headers.X_AUTH_TOKEN));
+    verify(jwtUtil, never()).extractTokenFromHeader(any());
+  }
+
+  @Test
+  void testFilter_WhenBasicExchangeFails_ShouldReturnUnauthorized() {
+    // Arrange — Keycloak rejects the credentials, so the exchange errors.
+    basicAuthConfig.setEnabled(true);
+    MockServerWebExchange exchange =
+        exchange(
+            MockServerHttpRequest.get("/admin/users")
+                .header(HttpHeaders.AUTHORIZATION, basicHeader("bob", "wrong"))
+                .build());
+    when(basicAuthTokenService.exchangeForToken(any()))
+        .thenReturn(Mono.error(new RuntimeException("401 from Keycloak")));
+
+    // Act / Assert
+    StepVerifier.create(filter.filter(exchange, chain)).verifyComplete();
+    assertEquals(HttpStatus.UNAUTHORIZED, exchange.getResponse().getStatusCode());
+    verify(chain, never()).filter(any());
   }
 }
