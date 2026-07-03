@@ -181,3 +181,6 @@ README.html
 out/
 .micronaut/
 !gradle/wrapper/gradle-wrapper.jar
+
+
+.claude/

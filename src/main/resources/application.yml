@@ -65,3 +65,16 @@ keycloak:
 
 authorization:
   enabled: ${AUTHORIZATION_ENABLED:true}
+
+# Inbound HTTP Basic authentication support.
+# When enabled, the gateway exchanges Basic credentials for a Keycloak token
+# (OAuth2 resource-owner-password grant) before running the JWT pipeline.
+# Use a DEDICATED confidential client (openhim-basic) with "Direct Access Grants"
+# enabled and Standard Flow / Service Accounts disabled -- do NOT reuse the
+# gateway-service client. token-uri MUST target the same realm as jwt.issuer,
+# and client-secret MUST be injected as a real secret (never committed).
+basic-auth:
+  enabled: ${BASIC_AUTH_ENABLED:false}
+  token-uri: ${BASIC_AUTH_TOKEN_URI:https://keycloak.mdtlabs.org/realms/smartcare/protocol/openid-connect/token}
+  client-id: ${BASIC_AUTH_CLIENT_ID:openhim-basic}
+  client-secret: ${BASIC_AUTH_CLIENT_SECRET:}

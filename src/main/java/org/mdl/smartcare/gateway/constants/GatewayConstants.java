@@ -20,12 +20,24 @@ public final class GatewayConstants {
 
     // Keycloak endpoints
     public static final String ENDPOINT_OPENID_CERTS = "/protocol/openid-connect/certs";
+    public static final String ENDPOINT_TOKEN = "/protocol/openid-connect/token";
     public static final String ENDPOINT_TOKEN_INTROSPECT =
         "/protocol/openid-connect/token/introspect";
 
     // Grant types
     public static final String GRANT_TYPE_CLIENT_CREDENTIALS = "client_credentials";
     public static final String GRANT_TYPE_PASSWORD = "password";
+
+    // OAuth2 token-request form parameters
+    public static final String PARAM_GRANT_TYPE = "grant_type";
+    public static final String PARAM_CLIENT_ID = "client_id";
+    public static final String PARAM_CLIENT_SECRET = "client_secret";
+    public static final String PARAM_USERNAME = "username";
+    public static final String PARAM_PASSWORD = "password";
+
+    // Token-response fields
+    public static final String FIELD_ACCESS_TOKEN = "access_token";
+    public static final String FIELD_EXPIRES_IN = "expires_in";
 
     // Realms
     public static final String REALM_MASTER = "master";
@@ -38,6 +50,7 @@ public final class GatewayConstants {
     public static final String AUTHORIZATION = "Authorization";
     public static final String CONTENT_TYPE = "Content-Type";
     public static final String BEARER_PREFIX = "Bearer ";
+    public static final String BASIC_PREFIX = "Basic ";
 
     // Custom headers for downstream services
     public static final String X_USER_NAME = "X-User-Name";
@@ -56,6 +69,10 @@ public final class GatewayConstants {
     public static final String ACCESS_DENIED = "Access denied: Insufficient permissions";
     public static final String TOKEN_VALIDATION_FAILED = "Token validation failed: ";
     public static final String UNKNOWN_USER = "unknown";
+    public static final String BASIC_AUTH_DISABLED = "Basic authentication is not enabled";
+    public static final String INVALID_BASIC_HEADER = "Malformed Basic Authorization header";
+    public static final String TOKEN_EXCHANGE_FAILED =
+        "Failed to exchange Basic credentials for a token: ";
   }
 
   /** JWT Claim names */

@@ -1,15 +1,18 @@
 package org.mdl.smartcare.gateway.security;
 
 import java.util.List;
+import org.mdl.smartcare.gateway.config.BasicAuthConfig;
 import org.mdl.smartcare.gateway.constants.GatewayConstants;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cloud.gateway.filter.GatewayFilter;
+import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.factory.AbstractGatewayFilterFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.stereotype.Component;
+import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
 @Component
@@ -18,6 +21,10 @@ public class JwtValidationFilter extends AbstractGatewayFilterFactory<JwtValidat
   @Autowired private JwtUtil jwtUtil;
 
   @Autowired private AuthorizationService authorizationService;
+
+  @Autowired private BasicAuthConfig basicAuthConfig;
+
+  @Autowired private BasicAuthTokenService basicAuthTokenService;
 
   public JwtValidationFilter() {
     super(Config.class);
@@ -35,46 +42,73 @@ public class JwtValidationFilter extends AbstractGatewayFilterFactory<JwtValidat
         return chain.filter(exchange);
       }
 
-      // Extract token from Authorization header
       String authHeader = request.getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
-      String token = jwtUtil.extractTokenFromHeader(authHeader);
 
+      // Basic auth: exchange credentials for a Keycloak token, then run the normal pipeline.
+      if (authHeader != null && authHeader.startsWith(GatewayConstants.Headers.BASIC_PREFIX)) {
+        if (!basicAuthConfig.isEnabled()) {
+          return handleUnauthorized(response, GatewayConstants.Messages.BASIC_AUTH_DISABLED);
+        }
+        String credentials = authHeader.substring(GatewayConstants.Headers.BASIC_PREFIX.length());
+        return basicAuthTokenService
+            .exchangeForToken(credentials)
+            .flatMap(token -> validateAuthorizeAndForward(exchange, chain, token))
+            .onErrorResume(
+                e ->
+                    handleUnauthorized(
+                        response, GatewayConstants.Messages.TOKEN_EXCHANGE_FAILED + e.getMessage()));
+      }
+
+      // Bearer auth: extract the token directly.
+      String token = jwtUtil.extractTokenFromHeader(authHeader);
       if (token == null) {
         return handleUnauthorized(response, GatewayConstants.Messages.MISSING_AUTH_HEADER);
       }
-
-      // Validate token
-      if (!jwtUtil.validateToken(token)) {
-        return handleUnauthorized(response, GatewayConstants.Messages.INVALID_TOKEN);
-      }
-
-      // Perform authorization check
-      try {
-        List<String> permissions = jwtUtil.extractPermissions(token);
-        String method = request.getMethod().name();
-        String uri = path;
-
-        if (!authorizationService.isAuthorized(permissions, method, uri)) {
-          return handleForbidden(response, GatewayConstants.Messages.ACCESS_DENIED);
-        }
-
-        // Extract username from JWT token
-        String username = jwtUtil.extractUsername(token);
-
-        // Add user info to request headers for downstream services
-        ServerHttpRequest modifiedRequest =
-            request
-                .mutate()
-                .header(GatewayConstants.Headers.X_USER_NAME, username)
-                .header(GatewayConstants.Headers.X_AUTH_TOKEN, token)
-                .build();
-
-        return chain.filter(exchange.mutate().request(modifiedRequest).build());
-      } catch (Exception e) {
-        return handleUnauthorized(
-            response, GatewayConstants.Messages.TOKEN_VALIDATION_FAILED + e.getMessage());
-      }
+      return validateAuthorizeAndForward(exchange, chain, token);
     };
+  }
+
+  /**
+   * Validate the token, enforce authorization for the requested method/path, and — on success —
+   * forward the request downstream with identity headers attached.
+   */
+  private Mono<Void> validateAuthorizeAndForward(
+      ServerWebExchange exchange, GatewayFilterChain chain, String token) {
+    ServerHttpRequest request = exchange.getRequest();
+    ServerHttpResponse response = exchange.getResponse();
+    String path = request.getURI().getPath();
+
+    // Validate token
+    if (!jwtUtil.validateToken(token)) {
+      return handleUnauthorized(response, GatewayConstants.Messages.INVALID_TOKEN);
+    }
+
+    // Perform authorization check
+    try {
+      List<String> permissions = jwtUtil.extractPermissions(token);
+      String method = request.getMethod().name();
+      String uri = path;
+
+      if (!authorizationService.isAuthorized(permissions, method, uri)) {
+        return handleForbidden(response, GatewayConstants.Messages.ACCESS_DENIED);
+      }
+
+      // Extract username from JWT token
+      String username = jwtUtil.extractUsername(token);
+
+      // Add user info to request headers for downstream services
+      ServerHttpRequest modifiedRequest =
+          request
+              .mutate()
+              .header(GatewayConstants.Headers.X_USER_NAME, username)
+              .header(GatewayConstants.Headers.X_AUTH_TOKEN, token)
+              .build();
+
+      return chain.filter(exchange.mutate().request(modifiedRequest).build());
+    } catch (Exception e) {
+      return handleUnauthorized(
+          response, GatewayConstants.Messages.TOKEN_VALIDATION_FAILED + e.getMessage());
+    }
   }
 
   private boolean isPublicEndpoint(String path) {
