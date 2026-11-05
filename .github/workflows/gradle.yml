@@ -28,12 +28,7 @@ jobs:
       uses: gradle/actions/setup-gradle@v4
 
     - name: Build with Gradle Wrapper
-      env:
-        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
-        SONAR.PROJECT.KEY: org.mdl.admin
-        SONAR.PROJECT.NAME: Admin
-      run: ./gradlew build sonar
+      run: ./gradlew build
 
     - name: Log in to GitHub Container Registry
       if: github.event_name == 'push'
