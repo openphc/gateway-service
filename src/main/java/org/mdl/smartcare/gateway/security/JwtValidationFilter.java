@@ -3,6 +3,7 @@ package org.mdl.smartcare.gateway.security;
 import java.util.List;
 import org.mdl.smartcare.gateway.config.BasicAuthConfig;
 import org.mdl.smartcare.gateway.constants.GatewayConstants;
+import org.mdl.smartcare.gateway.exception.SmartcareBusinessException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cloud.gateway.filter.GatewayFilter;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
@@ -59,8 +60,14 @@ public class JwtValidationFilter extends AbstractGatewayFilterFactory<JwtValidat
                         response, GatewayConstants.Messages.TOKEN_EXCHANGE_FAILED + e.getMessage()));
       }
 
-      // Bearer auth: extract the token directly.
-      String token = jwtUtil.extractTokenFromHeader(authHeader);
+      // Bearer auth: extract the token directly. A missing or non-Bearer header is a client error (401), not a
+      // server error: extractTokenFromHeader throws for it, which the exception handler would turn into a 500.
+      String token;
+      try {
+        token = jwtUtil.extractTokenFromHeader(authHeader);
+      } catch (SmartcareBusinessException e) {
+        token = null;
+      }
       if (token == null) {
         return handleUnauthorized(response, GatewayConstants.Messages.MISSING_AUTH_HEADER);
       }

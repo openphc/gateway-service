@@ -10,6 +10,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mdl.smartcare.gateway.config.BasicAuthConfig;
 import org.mdl.smartcare.gateway.constants.GatewayConstants;
+import org.mdl.smartcare.gateway.exception.SmartcareBusinessException;
 import org.mockito.ArgumentCaptor;
 import org.springframework.cloud.gateway.filter.GatewayFilter;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
@@ -100,6 +101,36 @@ class JwtValidationFilterTest {
     // Arrange — no Authorization header, so the extractor yields null.
     MockServerWebExchange exchange = exchange(MockServerHttpRequest.get("/admin/users").build());
     when(jwtUtil.extractTokenFromHeader(any())).thenReturn(null);
+
+    // Act / Assert
+    StepVerifier.create(filter.filter(exchange, chain)).verifyComplete();
+    assertEquals(HttpStatus.UNAUTHORIZED, exchange.getResponse().getStatusCode());
+    verify(chain, never()).filter(any());
+  }
+
+  @Test
+  void testFilter_WhenNoAuthorizationHeader_ShouldReturnUnauthorizedNotServerError() {
+    // Arrange — the real extractor throws for a missing header; that must surface as 401, not 500.
+    MockServerWebExchange exchange = exchange(MockServerHttpRequest.post("/v1/events").build());
+    when(jwtUtil.extractTokenFromHeader(any()))
+        .thenThrow(new SmartcareBusinessException(GatewayConstants.Messages.INVALID_AUTH_HEADER));
+
+    // Act / Assert
+    StepVerifier.create(filter.filter(exchange, chain)).verifyComplete();
+    assertEquals(HttpStatus.UNAUTHORIZED, exchange.getResponse().getStatusCode());
+    verify(chain, never()).filter(any());
+  }
+
+  @Test
+  void testFilter_WhenNonBearerScheme_ShouldReturnUnauthorized() {
+    // Arrange — e.g. "Digest ..." is neither Basic nor Bearer.
+    MockServerWebExchange exchange =
+        exchange(
+            MockServerHttpRequest.post("/v1/events")
+                .header(HttpHeaders.AUTHORIZATION, "Digest username=x")
+                .build());
+    when(jwtUtil.extractTokenFromHeader(any()))
+        .thenThrow(new SmartcareBusinessException(GatewayConstants.Messages.INVALID_AUTH_HEADER));
 
     // Act / Assert
     StepVerifier.create(filter.filter(exchange, chain)).verifyComplete();
